@@ -1,0 +1,1 @@
+This package contains request/response types and basic validation for the goboxd API.
