@@ -4,7 +4,7 @@ This file tracks work done by each teammate.
 
 ## Unreleased
 
-### You (Sujal)
+### Sujal
 - Added HTTP server skeleton with /healthz and /run handlers
 - Added request/response types and validation errors
 - Added stub runner and initial unit tests
