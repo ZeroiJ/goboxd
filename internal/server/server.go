@@ -12,7 +12,7 @@ type Runner interface {
 	Run(r *types.RunRequest) (*types.RunResponse, error)
 }
 
-func New(r Runner) http.Handler {
+func New(runner Runner) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -39,7 +39,7 @@ func New(r Runner) http.Handler {
 			return
 		}
 
-		resp, err := r.Run(&req)
+		resp, err := runner.Run(&req)
 		if err != nil {
 			var ae *types.APIError
 			if errors.As(err, &ae) {

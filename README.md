@@ -17,6 +17,13 @@
 
 goboxd is an HTTP service written in Go that compiles and runs untrusted code inside isolated sandboxes and returns the result. Optional test cases can be supplied to assert behaviour against expected output. It is built for safe execution of code across many languages, with strict isolation, bounded concurrency, and a plug and play language registry.
 
+## Important (read this first)
+
+- Stage 1 target: a Go HTTP server that runs in Docker, with /healthz and POST /run working for 2 languages (one interpreted + one compiled).
+- Use the branch: team/ZeroTrust_Hustlers.
+- The submission repo is thesouldev/goboxd; we work on our fork and open a PR back to master.
+- Everything should run inside Docker (use make build / make run / make test).
+
 ## Features
 
 - Plug and play language registry driven by YAML
