@@ -40,3 +40,15 @@ func TestRunUnknownLanguage(t *testing.T) {
 		t.Fatalf("expected 400, got %d", w.Code)
 	}
 }
+
+func TestRunStubAccepted(t *testing.T) {
+	h := New(NewStubRunner())
+	body := `{"language":"py3","source":"print(1)","tests":[{"stdin":"","expected_stdout":"hi"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/run", bytes.NewBufferString(body))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
