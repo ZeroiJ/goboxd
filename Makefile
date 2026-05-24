@@ -1,7 +1,7 @@
 .PHONY: build run test integration lint
 
 COMPOSE ?= docker compose
-TOOLS   := $(COMPOSE) --profile tools run --rm tools
+TOOLS   := $(COMPOSE) --profile tools run --rm -e GOFLAGS=-buildvcs=false tools
 
 build:
 	$(COMPOSE) build goboxd
