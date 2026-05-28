@@ -13,6 +13,7 @@ test:
 	$(TOOLS) go test ./...
 
 integration:
+	$(COMPOSE) up -d goboxd
 	$(TOOLS) go test -tags=integration ./tests/...
 
 lint:
