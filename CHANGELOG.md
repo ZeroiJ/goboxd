@@ -15,8 +15,12 @@ This file tracks work done by each teammate.
 - Stub runner now returns fake accepted output
 - Added test for stub runner 200 response
 
-### Team lead
-- 
+### Archi
+- Added nsjail runner for executing code in sandbox
+- Added language registry (YAML/config driven)
+- Added Python + C++ execution support
+- Added integration tests for end-to-end runs
+- Updated Dockerfile/main wiring for runner
 
 ### Shared
 - 
