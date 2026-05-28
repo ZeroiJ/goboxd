@@ -11,7 +11,7 @@ import (
 	"github.com/thesouldev/goboxd/internal/types"
 )
 
-const baseURL = "http://localhost:8080"
+const baseURL = "http://goboxd:8080"
 
 func postRun(t *testing.T, body any) *http.Response {
 	t.Helper()

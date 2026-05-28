@@ -103,7 +103,7 @@ func (r *Runner) doBuild(req *types.RunRequest, lang LanguageDef, workDir, sourc
 	cmdLine := expandTemplate(lang.BuildCmd, workDir, sourceFile, workDir, artifactName)
 
 	start := time.Now()
-	stdout, stderr, runErr := r.execCmd(cmdLine, "", buildLimits)
+	stdout, stderr, runErr := r.execCmd(cmdLine, "", buildLimits, workDir)
 	durMs := int(time.Since(start).Milliseconds())
 
 	if runErr != nil {
@@ -126,7 +126,7 @@ func (r *Runner) runTest(req *types.RunRequest, lang LanguageDef, workDir, sourc
 	}
 
 	start := time.Now()
-	stdout, stderr, runErr := r.execCmd(cmdLine, tc.Stdin, runLimits)
+	stdout, stderr, runErr := r.execCmd(cmdLine, tc.Stdin, runLimits, workDir)
 	durMs := int(time.Since(start).Milliseconds())
 
 	status := "accepted"
@@ -151,21 +151,32 @@ func (r *Runner) runTest(req *types.RunRequest, lang LanguageDef, workDir, sourc
 	}
 }
 
-func (r *Runner) execCmd(cmdLine []string, stdin string, limits types.Limits) (string, string, error) {
+func (r *Runner) execCmd(cmdLine []string, stdin string, limits types.Limits, workDir string) (string, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(limits.WallTimeS)*time.Second)
 	defer cancel()
 
 	var cmd *exec.Cmd
 	if r.useNsjail {
-		nsjailArgs := []string{"--chroot", "/", "--really_quiet"}
+		nsjailArgs := []string{
+			"--really_quiet",
+			"--disable_clone_newuser",
+			"--rw",
+			"--env", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+			"--bindmount_ro", "/usr",
+			"--bindmount_ro", "/lib",
+			"--bindmount_ro", "/lib64",
+			"--bindmount_ro", "/bin",
+			"--bindmount_ro", "/etc",
+			"--bindmount", workDir,
+		}
 		if limits.WallTimeS > 0 {
 			nsjailArgs = append(nsjailArgs, "--time_limit", fmt.Sprintf("%d", limits.WallTimeS))
 		}
 		if limits.MemoryKB > 0 {
-			nsjailArgs = append(nsjailArgs, "--max_mem", fmt.Sprintf("%d", limits.MemoryKB))
+			nsjailArgs = append(nsjailArgs, "--rlimit_as", fmt.Sprintf("%d", limits.MemoryKB/1024))
 		}
 		if limits.MaxProcesses > 0 {
-			nsjailArgs = append(nsjailArgs, "--max_procs", fmt.Sprintf("%d", limits.MaxProcesses))
+			nsjailArgs = append(nsjailArgs, "--rlimit_nproc", fmt.Sprintf("%d", limits.MaxProcesses))
 		}
 		nsjailArgs = append(nsjailArgs, "--", cmdLine[0])
 		nsjailArgs = append(nsjailArgs, cmdLine[1:]...)
@@ -186,7 +197,7 @@ func (r *Runner) execCmd(cmdLine []string, stdin string, limits types.Limits) (s
 }
 
 func defaultLimits() types.Limits {
-	return types.Limits{WallTimeS: 5, MemoryKB: 65536, MaxProcesses: 20}
+	return types.Limits{WallTimeS: 30, MemoryKB: 524288, MaxProcesses: 50}
 }
 
 func isTimeoutError(err error) bool {
