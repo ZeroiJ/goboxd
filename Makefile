@@ -1,4 +1,4 @@
-.PHONY: build run test integration lint
+.PHONY: build run test integration lint load
 
 COMPOSE ?= docker compose
 TOOLS   := $(COMPOSE) --profile tools run --rm -e GOFLAGS=-buildvcs=false tools
@@ -18,3 +18,7 @@ integration:
 
 lint:
 	$(TOOLS) golangci-lint run ./...
+
+load:
+	@echo "Running k6 load test..."
+	docker run --rm -i --network host -v $(PWD)/scripts:/scripts grafana/k6 run /scripts/load_test.js
