@@ -21,9 +21,9 @@ type RunBlock struct {
 }
 
 type Limits struct {
-	WallTimeS    int `json:"wall_time_s,omitempty"`
-	MemoryKB     int `json:"memory_kb,omitempty"`
-	MaxProcesses int `json:"max_processes,omitempty"`
+	WallTimeS    int `json:"wall_time_s,omitempty" yaml:"wall_time_s,omitempty"`
+	MemoryKB     int `json:"memory_kb,omitempty" yaml:"memory_kb,omitempty"`
+	MaxProcesses int `json:"max_processes,omitempty" yaml:"max_processes,omitempty"`
 }
 
 type TestCase struct {

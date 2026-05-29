@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=nsjail-builder /usr/local/bin/nsjail /usr/local/bin/nsjail
 RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 WORKDIR /src
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/goboxd ./cmd/goboxd
@@ -36,5 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=nsjail-builder /usr/local/bin/nsjail /usr/local/bin/nsjail
 COPY --from=builder        /out/goboxd          /usr/local/bin/goboxd
+WORKDIR /app
+COPY languages.yaml /app/
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/goboxd"]

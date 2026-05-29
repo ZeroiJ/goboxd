@@ -1,39 +1,59 @@
 package runner
 
-type LanguageDef struct {
-	SourceExt        string
-	BuildCmd         []string // nil for interpreted languages
-	BuildArtifact    string   // artifact filename (empty if no build)
-	RunCmd           []string
-	RunNeedsArtifact bool
+import (
+	"os"
+
+	"github.com/thesouldev/goboxd/internal/types"
+	"gopkg.in/yaml.v3"
+)
+
+type LanguageConfig struct {
+	ID             string        `yaml:"id"`
+	Name           string        `yaml:"name"`
+	SourceFilename string        `yaml:"source_filename"`
+	Artifact       string        `yaml:"artifact"`
+	Build          *ActionConfig `yaml:"build"`
+	Run            ActionConfig  `yaml:"run"`
 }
 
-var registry = map[string]LanguageDef{
-	"py3": {
-		SourceExt:        ".py",
-		BuildCmd:         nil,
-		BuildArtifact:    "",
-		RunCmd:           []string{"/usr/bin/python3", "{source_dir}/{source_file}"},
-		RunNeedsArtifact: false,
-	},
-	"cpp": {
-		SourceExt:        ".cpp",
-		BuildCmd:         []string{"/usr/bin/g++", "-o", "{artifact_dir}/{artifact_name}", "{source_dir}/{source_file}"},
-		BuildArtifact:    "prog",
-		RunCmd:           []string{"{artifact_dir}/{artifact_name}"},
-		RunNeedsArtifact: true,
-	},
+type ActionConfig struct {
+	Cmd           string        `yaml:"cmd"`
+	Args          []string      `yaml:"args"`
+	Limits        *types.Limits `yaml:"limits"`
+	FlagAllowlist []string      `yaml:"flag_allowlist"`
 }
 
-func Lookup(lang string) (LanguageDef, bool) {
+type RegistryData struct {
+	Languages []LanguageConfig `yaml:"languages"`
+}
+
+var registry = make(map[string]LanguageConfig)
+var languageList []LanguageConfig
+
+func InitRegistry(yamlPath string) error {
+	b, err := os.ReadFile(yamlPath)
+	if err != nil {
+		return err
+	}
+	var data RegistryData
+	if err := yaml.Unmarshal(b, &data); err != nil {
+		return err
+	}
+
+	newReg := make(map[string]LanguageConfig)
+	for _, l := range data.Languages {
+		newReg[l.ID] = l
+	}
+	registry = newReg
+	languageList = data.Languages
+	return nil
+}
+
+func Lookup(lang string) (LanguageConfig, bool) {
 	def, ok := registry[lang]
 	return def, ok
 }
 
-func SupportedLanguages() []string {
-	langs := make([]string, 0, len(registry))
-	for l := range registry {
-		langs = append(langs, l)
-	}
-	return langs
+func SupportedLanguages() []LanguageConfig {
+	return languageList
 }

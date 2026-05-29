@@ -30,11 +30,54 @@ func nsjailAvailable() bool {
 	return err == nil
 }
 
+func validateFlags(provided []string, allowlist []string) bool {
+	for _, f := range provided {
+		valid := false
+		for _, a := range allowlist {
+			if strings.HasSuffix(a, "*") {
+				if strings.HasPrefix(f, strings.TrimSuffix(a, "*")) {
+					valid = true
+					break
+				}
+			} else {
+				if f == a {
+					valid = true
+					break
+				}
+			}
+		}
+		if !valid {
+			return false
+		}
+	}
+	return true
+}
+
 func (r *Runner) Run(req *types.RunRequest) (*types.RunResponse, error) {
 	lang, ok := Lookup(req.Language)
 	if !ok {
 		return nil, &types.APIError{Status: 400, Code: "unsupported_language",
 			Message: fmt.Sprintf("unsupported language %q", req.Language),
+		}
+	}
+
+	var bFlags []string
+	if lang.Build != nil {
+		if req.Build != nil && req.Build.Flags != nil {
+			bFlags = req.Build.Flags
+		}
+		if !validateFlags(bFlags, lang.Build.FlagAllowlist) {
+			return nil, &types.APIError{Status: 400, Code: "disallowed_flag", Message: "build flag not in allowlist"}
+		}
+	}
+
+	var rFlags []string
+	if lang.Run.Cmd != "" {
+		if req.Run != nil && req.Run.Flags != nil {
+			rFlags = req.Run.Flags
+		}
+		if !validateFlags(rFlags, lang.Run.FlagAllowlist) {
+			return nil, &types.APIError{Status: 400, Code: "disallowed_flag", Message: "run flag not in allowlist"}
 		}
 	}
 
@@ -44,20 +87,27 @@ func (r *Runner) Run(req *types.RunRequest) (*types.RunResponse, error) {
 	}
 	defer os.RemoveAll(workDir)
 
-	sourceFile := "main" + lang.SourceExt
+	sourceFile := lang.SourceFilename
 	if req.SourceFilename != "" {
 		sourceFile = req.SourceFilename
+	}
+	if sourceFile == "" {
+		sourceFile = "solution.txt"
 	}
 	sourcePath := filepath.Join(workDir, sourceFile)
 	if err := os.WriteFile(sourcePath, []byte(req.Source), 0644); err != nil {
 		return nil, fmt.Errorf("write source: %w", err)
 	}
 
-	artifactName := lang.BuildArtifact
+	artifactName := lang.Artifact
+	if req.ArtifactFilename != "" {
+		artifactName = req.ArtifactFilename
+	}
+
 	var buildResult types.BuildResult
 
-	if lang.BuildCmd != nil {
-		buildResult = r.doBuild(req, lang, workDir, sourceFile, artifactName)
+	if lang.Build != nil {
+		buildResult = r.doBuild(req, lang, workDir, sourceFile, artifactName, bFlags)
 		if buildResult.Status != "ok" {
 			testResults := make([]types.TestResult, len(req.Tests))
 			for i := range req.Tests {
@@ -72,7 +122,7 @@ func (r *Runner) Run(req *types.RunRequest) (*types.RunResponse, error) {
 	testResults := make([]types.TestResult, 0, len(req.Tests))
 	overallStatus := "accepted"
 	for _, tc := range req.Tests {
-		tr := r.runTest(req, lang, workDir, sourceFile, artifactName, tc)
+		tr := r.runTest(req, lang, workDir, sourceFile, artifactName, rFlags, tc)
 		testResults = append(testResults, tr)
 		if overallStatus == "accepted" && tr.Status != "accepted" {
 			overallStatus = tr.Status
@@ -86,13 +136,25 @@ func (r *Runner) Run(req *types.RunRequest) (*types.RunResponse, error) {
 	}, nil
 }
 
-func (r *Runner) doBuild(req *types.RunRequest, lang LanguageDef, workDir, sourceFile, artifactName string) types.BuildResult {
+func (r *Runner) doBuild(req *types.RunRequest, lang LanguageConfig, workDir, sourceFile, artifactName string, flags []string) types.BuildResult {
 	buildLimits := defaultLimits()
+	if lang.Build.Limits != nil {
+		buildLimits = *lang.Build.Limits
+	}
 	if req.Build != nil && req.Build.Limits != nil {
-		buildLimits = *req.Build.Limits
+		if req.Build.Limits.WallTimeS > 0 {
+			buildLimits.WallTimeS = req.Build.Limits.WallTimeS
+		}
+		if req.Build.Limits.MemoryKB > 0 {
+			buildLimits.MemoryKB = req.Build.Limits.MemoryKB
+		}
+		if req.Build.Limits.MaxProcesses > 0 {
+			buildLimits.MaxProcesses = req.Build.Limits.MaxProcesses
+		}
 	}
 
-	cmdLine := expandTemplate(lang.BuildCmd, workDir, sourceFile, workDir, artifactName)
+	tpl := append([]string{lang.Build.Cmd}, lang.Build.Args...)
+	cmdLine := expandTemplate(tpl, workDir, sourceFile, artifactName, flags)
 
 	start := time.Now()
 	stdout, stderr, runErr := r.execCmd(cmdLine, "", buildLimits, workDir)
@@ -104,18 +166,25 @@ func (r *Runner) doBuild(req *types.RunRequest, lang LanguageDef, workDir, sourc
 	return types.BuildResult{Status: "ok", Stdout: stdout, Stderr: stderr, DurationMS: durMs}
 }
 
-func (r *Runner) runTest(req *types.RunRequest, lang LanguageDef, workDir, sourceFile, artifactName string, tc types.TestCase) types.TestResult {
+func (r *Runner) runTest(req *types.RunRequest, lang LanguageConfig, workDir, sourceFile, artifactName string, flags []string, tc types.TestCase) types.TestResult {
 	runLimits := defaultLimits()
+	if lang.Run.Limits != nil {
+		runLimits = *lang.Run.Limits
+	}
 	if req.Run != nil && req.Run.Limits != nil {
-		runLimits = *req.Run.Limits
+		if req.Run.Limits.WallTimeS > 0 {
+			runLimits.WallTimeS = req.Run.Limits.WallTimeS
+		}
+		if req.Run.Limits.MemoryKB > 0 {
+			runLimits.MemoryKB = req.Run.Limits.MemoryKB
+		}
+		if req.Run.Limits.MaxProcesses > 0 {
+			runLimits.MaxProcesses = req.Run.Limits.MaxProcesses
+		}
 	}
 
-	var cmdLine []string
-	if lang.RunNeedsArtifact {
-		cmdLine = expandTemplate(lang.RunCmd, workDir, sourceFile, workDir, artifactName)
-	} else {
-		cmdLine = expandTemplate(lang.RunCmd, workDir, sourceFile, workDir, "")
-	}
+	tpl := append([]string{lang.Run.Cmd}, lang.Run.Args...)
+	cmdLine := expandTemplate(tpl, workDir, sourceFile, artifactName, flags)
 
 	start := time.Now()
 	stdout, stderr, runErr := r.execCmd(cmdLine, tc.Stdin, runLimits, workDir)
@@ -143,7 +212,7 @@ func (r *Runner) runTest(req *types.RunRequest, lang LanguageDef, workDir, sourc
 		Stdout:       stdout,
 		Stderr:       stderr,
 		DurationMS:   durMs,
-		MemoryPeakKB: 0,
+		MemoryPeakKB: 0, // Mocked for now, parsing cgroup stats is a bonus
 	}
 }
 
@@ -208,6 +277,7 @@ func (w *cappedWriter) Write(p []byte) (int, error) {
 		}
 		w.buf.Write(p[:writeLen])
 		if w.buf.Len() == w.limit {
+			w.buf.WriteString("\n[output truncated]")
 		}
 	}
 	return len(p), nil
@@ -227,14 +297,23 @@ func isTimeoutError(err error) bool {
 	return strings.Contains(err.Error(), "context deadline exceeded") || strings.Contains(err.Error(), "signal: killed")
 }
 
-func expandTemplate(tpl []string, sourceDir, sourceFile, artifactDir, artifactName string) []string {
-	out := make([]string, len(tpl))
-	for i, s := range tpl {
-		s = strings.ReplaceAll(s, "{source_dir}", sourceDir)
-		s = strings.ReplaceAll(s, "{source_file}", sourceFile)
-		s = strings.ReplaceAll(s, "{artifact_dir}", artifactDir)
-		s = strings.ReplaceAll(s, "{artifact_name}", artifactName)
-		out[i] = s
+func expandTemplate(tpl []string, workDir, sourceFile, artifactName string, flags []string) []string {
+	out := make([]string, 0, len(tpl)+len(flags))
+	sourcePath := filepath.Join(workDir, sourceFile)
+	var artifactPath string
+	if artifactName != "" {
+		artifactPath = filepath.Join(workDir, artifactName)
+	}
+	for _, s := range tpl {
+		if s == "{{flags}}" {
+			out = append(out, flags...)
+		} else {
+			s = strings.ReplaceAll(s, "{{source}}", sourcePath)
+			if artifactPath != "" {
+				s = strings.ReplaceAll(s, "{{artifact}}", artifactPath)
+			}
+			out = append(out, s)
+		}
 	}
 	return out
 }

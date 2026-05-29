@@ -10,6 +10,10 @@ import (
 )
 
 func main() {
+	if err := runner.InitRegistry("languages.yaml"); err != nil {
+		log.Fatalf("failed to load registry: %v", err)
+	}
+
 	addr := ":8080"
 	if v := os.Getenv("GOBXD_ADDR"); v != "" {
 		addr = v
