@@ -1,41 +1,32 @@
 # goboxd
 
-goboxd is a Go HTTP service that compiles and runs untrusted code inside an nsjail sandbox and returns per-test results.
+goboxd is a Go HTTP service that compiles and runs untrusted code inside an nsjail sandbox. It evaluates submissions against test cases and returns structured results.
 
-## Run it
+We use the standard library `net/http` for our routing framework. The API surface is small enough that an external framework is unnecessary, and the standard `ServeMux` keeps the dependency tree minimal.
 
-Prereqs: Docker with Compose v2.
+## Running
 
-  make build
-  make run
+Requires Docker and Docker Compose v2. No local nsjail installation is needed; it compiles from source during the container build.
 
-## Test it
+    make build
+    make run
 
-  make test
-  make integration
-  make lint
+## Testing
 
-## API
+    make test         # Unit tests
+    make integration  # End-to-end tests inside Docker
+    make lint         # golangci-lint
 
-Health check:
+## Documentation
 
-  curl -s http://localhost:8080/healthz
+Extended documentation is located in the `docs/` directory:
+- `docs/api.md`: Endpoint specifications
+- `docs/languages.md`: Language registry and YAML configuration
+- `docs/security.md`: Hardening and vulnerability fixes
+- `docs/architecture.md`: System design and concurrency queue
+- `docs/benchmarks.md`: Load testing results
 
-Run code (example):
+## Submission Info
 
-  curl -s http://localhost:8080/run \
-    -H 'Content-Type: application/json' \
-    -d '{
-      "language": "py3",
-      "source": "print(\"hi\")",
-      "tests": [
-        { "stdin": "", "expected_stdout": "hi" }
-      ]
-    }'
-
-## Docs
-
-- docs/ for API, languages, security, benchmarks, architecture
 - Spec: https://intern-iitm.github.io/goboxd-hackathon/spec.html
-- Discussions: https://github.com/intern-iitm/goboxd-hackathon/discussions
 - Submission repo: https://github.com/thesouldev/goboxd
