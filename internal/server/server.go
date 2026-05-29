@@ -26,10 +26,16 @@ func New(runner Runner) http.Handler {
 			return
 		}
 
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB limit
 		var req types.RunRequest
 		dec := json.NewDecoder(r.Body)
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&req); err != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) || err.Error() == "http: request body too large" {
+				writeError(w, &types.APIError{Status: http.StatusRequestEntityTooLarge, Code: "request_too_large", Message: "request body exceeds 1MB limit"})
+				return
+			}
 			writeError(w, &types.APIError{Status: http.StatusBadRequest, Code: "invalid_json", Message: "invalid JSON body"})
 			return
 		}
