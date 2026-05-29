@@ -110,6 +110,17 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(resp)
+
+	// Structured logging (Bonus)
+	logData := map[string]any{
+		"request_id": time.Now().UnixNano(),
+		"language": req.Language,
+		"build_duration_ms": resp.Build.DurationMS,
+		"status": resp.Status,
+	}
+	if b, err := json.Marshal(logData); err == nil {
+		os.Stdout.Write(append(b, '\n'))
+	}
 }
 
 func writeError(w http.ResponseWriter, err *types.APIError) {
