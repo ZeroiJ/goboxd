@@ -51,3 +51,21 @@ type TestResult struct {
 	DurationMS   int    `json:"duration_ms"`
 	MemoryPeakKB int    `json:"memory_peak_kb"`
 }
+
+type ProbeResult struct {
+	OK      bool   `json:"ok"`
+	Version string `json:"version,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
+type Readiness struct {
+	Status    string                 `json:"status"`
+	Nsjail    ProbeResult            `json:"nsjail"`
+	Languages map[string]ProbeResult `json:"languages"`
+}
+
+type RunnerInfo struct {
+	NsjailPath    string
+	NsjailVersion string
+	Languages     []any
+}

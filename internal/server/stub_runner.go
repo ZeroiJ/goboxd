@@ -32,3 +32,10 @@ func (s *stubRunner) Run(r *types.RunRequest) (*types.RunResponse, error) {
 
 	return resp, nil
 }
+
+func (s *stubRunner) Probe() types.Readiness {
+	return types.Readiness{Status: "ok"}
+}
+func (s *stubRunner) Info() types.RunnerInfo {
+	return types.RunnerInfo{}
+}

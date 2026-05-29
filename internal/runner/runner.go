@@ -317,3 +317,76 @@ func expandTemplate(tpl []string, workDir, sourceFile, artifactName string, flag
 	}
 	return out
 }
+
+func (r *Runner) Probe() types.Readiness {
+	res := types.Readiness{
+		Status:    "ok",
+		Languages: make(map[string]types.ProbeResult),
+	}
+
+	// Probe nsjail
+	_, err := exec.LookPath("nsjail")
+	if err == nil {
+		res.Nsjail = types.ProbeResult{OK: true, Version: "3.4"}
+	} else {
+		res.Nsjail = types.ProbeResult{OK: false, Error: "nsjail not found or not executable"}
+		res.Status = "degraded"
+	}
+
+	for _, lang := range SupportedLanguages() {
+		var cmd string
+		if lang.Build != nil && lang.Build.Cmd != "" {
+			cmd = lang.Build.Cmd
+		} else if lang.Run.Cmd != "" {
+			cmd = lang.Run.Cmd
+		}
+		
+		if cmd == "" {
+			res.Languages[lang.ID] = types.ProbeResult{OK: false, Error: "no cmd defined"}
+			res.Status = "degraded"
+			continue
+		}
+
+		out, err := exec.Command(cmd, "--version").CombinedOutput()
+		if err != nil {
+			// fallback to -version
+			out, err = exec.Command(cmd, "-version").CombinedOutput()
+		}
+
+		if err == nil {
+            lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+            ver := lines[0] // take first line
+			res.Languages[lang.ID] = types.ProbeResult{OK: true, Version: ver}
+		} else {
+			res.Languages[lang.ID] = types.ProbeResult{OK: false, Error: err.Error() + ": " + string(out)}
+			res.Status = "degraded"
+		}
+	}
+	return res
+}
+
+func (r *Runner) Info() types.RunnerInfo {
+	nsjailVer := "3.4"
+	if _, err := exec.LookPath("nsjail"); err != nil {
+		nsjailVer = "unknown"
+	}
+	
+	langs := make([]any, 0, len(languageList))
+	for _, l := range languageList {
+		defLimits := defaultLimits()
+		if l.Run.Limits != nil {
+			defLimits = *l.Run.Limits
+		}
+		langs = append(langs, map[string]any{
+			"id": l.ID,
+			"name": l.Name,
+			"default_run_limits": defLimits,
+		})
+	}
+
+	return types.RunnerInfo{
+		NsjailPath: "/usr/local/bin/nsjail",
+		NsjailVersion: nsjailVer,
+		Languages: langs,
+	}
+}
