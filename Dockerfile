@@ -32,7 +32,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/goboxd ./cmd/gobox
 FROM debian:${DEBIAN_VERSION}-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates libnl-route-3-200 libprotobuf32 \
-        python3 g++ gcc \
+        python3 g++ gcc default-jdk nodejs iverilog \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=nsjail-builder /usr/local/bin/nsjail /usr/local/bin/nsjail
 COPY --from=builder        /out/goboxd          /usr/local/bin/goboxd
