@@ -91,7 +91,7 @@ int main() {
 	if result.Status != "accepted" {
 		t.Fatalf("expected accepted, got %s", result.Status)
 	}
-	if result.Build.Status != "success" {
+	if result.Build.Status != "ok" {
 		t.Fatalf("expected build success, got %s", result.Build.Status)
 	}
 }
@@ -111,7 +111,7 @@ func TestIntegrationPythonWrongAnswer(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Status != "wrong_answer" {
+	if result.Status != "wrong_output" {
 		t.Fatalf("expected wrong_answer, got %s", result.Status)
 	}
 }

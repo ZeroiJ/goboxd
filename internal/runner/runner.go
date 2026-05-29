@@ -58,32 +58,24 @@ func (r *Runner) Run(req *types.RunRequest) (*types.RunResponse, error) {
 
 	if lang.BuildCmd != nil {
 		buildResult = r.doBuild(req, lang, workDir, sourceFile, artifactName)
-		if buildResult.Status != "success" {
-			return &types.RunResponse{Status: "build_error", Build: buildResult}, nil
+		if buildResult.Status != "ok" {
+			testResults := make([]types.TestResult, len(req.Tests))
+			for i := range req.Tests {
+				testResults[i] = types.TestResult{Status: "not_executed"}
+			}
+			return &types.RunResponse{Status: "build_failed", Build: buildResult, Tests: testResults}, nil
 		}
 	} else {
-		buildResult = types.BuildResult{Status: "success"}
+		buildResult = types.BuildResult{Status: "ok"}
 	}
 
 	testResults := make([]types.TestResult, 0, len(req.Tests))
+	overallStatus := "accepted"
 	for _, tc := range req.Tests {
 		tr := r.runTest(req, lang, workDir, sourceFile, artifactName, tc)
 		testResults = append(testResults, tr)
-	}
-
-	overallStatus := "accepted"
-	for _, tr := range testResults {
-		switch tr.Status {
-		case "wrong_answer":
-			overallStatus = "wrong_answer"
-		case "runtime_error":
-			if overallStatus != "wrong_answer" {
-				overallStatus = "runtime_error"
-			}
-		case "time_limit_exceeded":
-			if overallStatus != "wrong_answer" && overallStatus != "runtime_error" {
-				overallStatus = "time_limit_exceeded"
-			}
+		if overallStatus == "accepted" && tr.Status != "accepted" {
+			overallStatus = tr.Status
 		}
 	}
 
@@ -107,9 +99,9 @@ func (r *Runner) doBuild(req *types.RunRequest, lang LanguageDef, workDir, sourc
 	durMs := int(time.Since(start).Milliseconds())
 
 	if runErr != nil {
-		return types.BuildResult{Status: "build_error", Stdout: stdout, Stderr: stderr, DurationMS: durMs}
+		return types.BuildResult{Status: "failed", Stdout: stdout, Stderr: stderr, DurationMS: durMs}
 	}
-	return types.BuildResult{Status: "success", Stdout: stdout, Stderr: stderr, DurationMS: durMs}
+	return types.BuildResult{Status: "ok", Stdout: stdout, Stderr: stderr, DurationMS: durMs}
 }
 
 func (r *Runner) runTest(req *types.RunRequest, lang LanguageDef, workDir, sourceFile, artifactName string, tc types.TestCase) types.TestResult {
@@ -132,14 +124,18 @@ func (r *Runner) runTest(req *types.RunRequest, lang LanguageDef, workDir, sourc
 	status := "accepted"
 	if runErr != nil {
 		if isTimeoutError(runErr) {
-			status = "time_limit_exceeded"
+			status = "time_exceeded"
 		} else {
 			status = "runtime_error"
 		}
-	} else if tc.ExpectedStdout != "" && strings.TrimRight(stdout, "\n") != strings.TrimRight(tc.ExpectedStdout, "\n") {
-		status = "wrong_answer"
+	} else if tc.ExpectedStdout != "" {
+		trimmedOut := strings.TrimRight(stdout, "\n")
+		trimmedExpected := strings.TrimRight(tc.ExpectedStdout, "\n")
+		if trimmedOut != trimmedExpected {
+			status = "wrong_output"
+		}
 	} else if tc.ExpectedStdout == "" && stdout != "" {
-		status = "wrong_answer"
+		status = "wrong_output"
 	}
 
 	return types.TestResult{
