@@ -8,7 +8,7 @@ import (
 )
 
 func TestHealthz(t *testing.T) {
-	h := New(NewStubRunner())
+	h := New(NewStubRunner()).Handler()
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -19,7 +19,7 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestRunInvalidJSON(t *testing.T) {
-	h := New(NewStubRunner())
+	h := New(NewStubRunner()).Handler()
 	req := httptest.NewRequest(http.MethodPost, "/run", bytes.NewBufferString("{bad"))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -30,7 +30,7 @@ func TestRunInvalidJSON(t *testing.T) {
 }
 
 func TestRunUnknownLanguage(t *testing.T) {
-	h := New(NewStubRunner())
+	h := New(NewStubRunner()).Handler()
 	body := `{"language":"","source":"print(1)","tests":[{"stdin":""}]}`
 	req := httptest.NewRequest(http.MethodPost, "/run", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()
@@ -42,7 +42,7 @@ func TestRunUnknownLanguage(t *testing.T) {
 }
 
 func TestRunStubAccepted(t *testing.T) {
-	h := New(NewStubRunner())
+	h := New(NewStubRunner()).Handler()
 	body := `{"language":"py3","source":"print(1)","tests":[{"stdin":"","expected_stdout":"hi"}]}`
 	req := httptest.NewRequest(http.MethodPost, "/run", bytes.NewBufferString(body))
 	w := httptest.NewRecorder()

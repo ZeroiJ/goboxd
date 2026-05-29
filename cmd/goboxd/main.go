@@ -15,7 +15,8 @@ func main() {
 		addr = v
 	}
 
-	h := server.New(runner.New())
+	srv := server.New(runner.New())
+	h := srv.Handler()
 
 	log.Printf("goboxd listening on %s", addr)
 	if err := http.ListenAndServe(addr, h); err != nil {
