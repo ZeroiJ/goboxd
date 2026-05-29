@@ -181,15 +181,39 @@ func (r *Runner) execCmd(cmdLine []string, stdin string, limits types.Limits, wo
 		cmd = exec.CommandContext(ctx, cmdLine[0], cmdLine[1:]...)
 	}
 
-	var stdoutBuf, stderrBuf bytes.Buffer
-	cmd.Stdout = &stdoutBuf
-	cmd.Stderr = &stderrBuf
+	stdoutBuf := &cappedWriter{limit: 1024 * 1024} // 1 MiB limit
+	stderrBuf := &cappedWriter{limit: 1024 * 1024}
+	cmd.Stdout = stdoutBuf
+	cmd.Stderr = stderrBuf
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
 
 	err := cmd.Run()
 	return stdoutBuf.String(), stderrBuf.String(), err
+}
+
+type cappedWriter struct {
+	buf     bytes.Buffer
+	limit   int
+	written int
+}
+
+func (w *cappedWriter) Write(p []byte) (int, error) {
+	w.written += len(p)
+	if w.buf.Len() < w.limit {
+		writeLen := len(p)
+		if w.buf.Len()+writeLen > w.limit {
+			writeLen = w.limit - w.buf.Len()
+		}
+		w.buf.Write(p[:writeLen])
+		if w.buf.Len() == w.limit {
+		}
+	}
+	return len(p), nil
+}
+func (w *cappedWriter) String() string {
+	return w.buf.String()
 }
 
 func defaultLimits() types.Limits {
